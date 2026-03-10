@@ -1,924 +1,891 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TRACE // Digital Footprint Analyzer</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --green: #00ff9d;
-    --green-dim: #00cc7a;
-    --green-dark: #003d25;
-    --cyan: #00e5ff;
-    --red: #ff3c3c;
-    --yellow: #ffd600;
-    --bg: #020c07;
-    --bg2: #050f0a;
-    --panel: #071410;
-    --border: #0a3020;
-    --text: #a0ffcc;
-    --text-dim: #3a7a56;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Share Tech Mono', monospace;
-    min-height: 100vh;
-    overflow-x: hidden;
-    cursor: crosshair;
-  }
-
-  /* Scanline overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,255,157,0.015) 2px,
-      rgba(0,255,157,0.015) 4px
-    );
-    pointer-events: none;
-    z-index: 9999;
-  }
-
-  /* Grid background */
-  body::after {
-    content: '';
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background-image:
-      linear-gradient(rgba(0,255,157,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,255,157,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .noise {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    opacity: 0.04;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .container {
-    position: relative;
-    z-index: 10;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 24px 60px;
-  }
-
-  /* HEADER */
-  header {
-    padding: 40px 0 30px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-
-  .logo {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .logo-title {
-    font-family: 'Orbitron', monospace;
-    font-size: 2.2rem;
-    font-weight: 900;
-    color: var(--green);
-    letter-spacing: 6px;
-    text-shadow: 0 0 20px rgba(0,255,157,0.5), 0 0 60px rgba(0,255,157,0.2);
-    animation: flicker 8s infinite;
-  }
-
-  .logo-sub {
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    letter-spacing: 4px;
-    text-transform: uppercase;
-  }
-
-  .status-bar {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 6px;
-    font-size: 0.65rem;
-    color: var(--text-dim);
-    letter-spacing: 2px;
-  }
-
-  .status-dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--green);
-    box-shadow: 0 0 8px var(--green);
-    margin-right: 6px;
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  @keyframes flicker {
-    0%, 95%, 100% { opacity: 1; }
-    96% { opacity: 0.8; }
-    97% { opacity: 1; }
-    98% { opacity: 0.6; }
-    99% { opacity: 1; }
-  }
-
-  /* INPUT SECTION */
-  .input-section {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-top: 2px solid var(--green);
-    padding: 32px;
-    margin-bottom: 32px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .input-section::before {
-    content: 'SUBJECT IDENTIFICATION';
-    position: absolute;
-    top: 12px; left: 16px;
-    font-size: 0.6rem;
-    color: var(--green);
-    letter-spacing: 4px;
-    opacity: 0.6;
-  }
-
-  .input-section::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--green), transparent);
-    animation: scanline-h 4s linear infinite;
-  }
-
-  @keyframes scanline-h {
-    0% { transform: scaleX(0); transform-origin: left; }
-    50% { transform: scaleX(1); transform-origin: left; }
-    51% { transform: scaleX(1); transform-origin: right; }
-    100% { transform: scaleX(0); transform-origin: right; }
-  }
-
-  .input-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 24px;
-    margin-top: 20px;
-  }
-
-  @media (max-width: 700px) {
-    .input-grid { grid-template-columns: 1fr; }
-  }
-
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .field label {
-    font-size: 0.6rem;
-    letter-spacing: 3px;
-    color: var(--green-dim);
-    text-transform: uppercase;
-  }
-
-  .field input {
-    background: rgba(0,255,157,0.03);
-    border: 1px solid var(--border);
-    border-bottom: 1px solid var(--green-dim);
-    color: var(--text);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.95rem;
-    padding: 10px 14px;
-    outline: none;
-    transition: all 0.3s;
-    letter-spacing: 1px;
-  }
-
-  .field input::placeholder { color: var(--text-dim); }
-
-  .field input:focus {
-    background: rgba(0,255,157,0.06);
-    border-color: var(--green);
-    box-shadow: 0 0 15px rgba(0,255,157,0.1), inset 0 0 10px rgba(0,255,157,0.03);
-  }
-
-  .trace-btn {
-    background: transparent;
-    border: 1px solid var(--green);
-    color: var(--green);
-    font-family: 'Orbitron', monospace;
-    font-size: 0.85rem;
-    font-weight: 700;
-    letter-spacing: 4px;
-    padding: 14px 40px;
-    cursor: crosshair;
-    transition: all 0.3s;
-    position: relative;
-    overflow: hidden;
-    text-transform: uppercase;
-    width: 100%;
-  }
-
-  .trace-btn::before {
-    content: '';
-    position: absolute;
-    top: 0; left: -100%;
-    width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(0,255,157,0.15), transparent);
-    transition: left 0.5s;
-  }
-
-  .trace-btn:hover::before { left: 100%; }
-
-  .trace-btn:hover {
-    background: rgba(0,255,157,0.08);
-    box-shadow: 0 0 25px rgba(0,255,157,0.3), inset 0 0 20px rgba(0,255,157,0.05);
-    text-shadow: 0 0 10px var(--green);
-  }
-
-  .trace-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  /* SCANNING ANIMATION */
-  .scan-section {
-    display: none;
-    text-align: center;
-    padding: 60px 20px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    margin-bottom: 32px;
-  }
-
-  .scan-section.active { display: block; }
-
-  .radar {
-    width: 120px;
-    height: 120px;
-    border: 2px solid var(--green-dim);
-    border-radius: 50%;
-    position: relative;
-    margin: 0 auto 24px;
-  }
-
-  .radar::before, .radar::after {
-    content: '';
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-  }
-
-  .radar::before {
-    width: 70%; height: 70%;
-    border: 1px solid rgba(0,255,157,0.3);
-  }
-
-  .radar::after {
-    width: 40%; height: 40%;
-    border: 1px solid rgba(0,255,157,0.2);
-  }
-
-  .radar-sweep {
-    position: absolute;
-    top: 0; left: 50%;
-    width: 50%; height: 50%;
-    transform-origin: bottom left;
-    background: conic-gradient(from 0deg, transparent 270deg, rgba(0,255,157,0.4) 360deg);
-    animation: sweep 2s linear infinite;
-    border-radius: 0 100% 0 0;
-  }
-
-  .radar-center {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 8px; height: 8px;
-    background: var(--green);
-    border-radius: 50%;
-    box-shadow: 0 0 10px var(--green);
-  }
-
-  @keyframes sweep {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
-  .scan-log {
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    letter-spacing: 2px;
-    line-height: 2;
-    max-width: 500px;
-    margin: 0 auto;
-  }
-
-  .scan-log .log-line {
-    opacity: 0;
-    animation: fadein 0.3s forwards;
-    text-align: left;
-  }
-
-  .scan-log .log-line::before {
-    content: '> ';
-    color: var(--green);
-  }
-
-  @keyframes fadein {
-    to { opacity: 1; }
-  }
-
-  /* RESULTS */
-  .results-section { display: none; }
-  .results-section.active { display: block; }
-
-  .results-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .results-title {
-    font-family: 'Orbitron', monospace;
-    font-size: 0.9rem;
-    letter-spacing: 4px;
-    color: var(--green);
-  }
-
-  .threat-score {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 20px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-  }
-
-  .threat-label {
-    font-size: 0.6rem;
-    letter-spacing: 3px;
-    color: var(--text-dim);
-  }
-
-  .threat-value {
-    font-family: 'Orbitron', monospace;
-    font-size: 1.4rem;
-    font-weight: 900;
-    color: var(--yellow);
-    text-shadow: 0 0 15px rgba(255,214,0,0.4);
-  }
-
-  /* Summary panel */
-  .summary-panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--cyan);
-    padding: 24px;
-    margin-bottom: 24px;
-    font-size: 0.85rem;
-    line-height: 1.8;
-    color: var(--text);
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 1rem;
-    letter-spacing: 0.5px;
-  }
-
-  .summary-panel h3 {
-    font-family: 'Orbitron', monospace;
-    font-size: 0.65rem;
-    letter-spacing: 4px;
-    color: var(--cyan);
-    margin-bottom: 12px;
-  }
-
-  /* Platform grid */
-  .platforms-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .platform-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    padding: 20px;
-    position: relative;
-    overflow: hidden;
-    opacity: 0;
-    transform: translateY(10px);
-    animation: cardReveal 0.4s forwards;
-    transition: all 0.3s;
-  }
-
-  .platform-card:hover {
-    border-color: var(--green-dim);
-    box-shadow: 0 0 20px rgba(0,255,157,0.05);
-    transform: translateY(-2px) !important;
-  }
-
-  .platform-card.found { border-left: 3px solid var(--green); }
-  .platform-card.not-found { border-left: 3px solid #333; opacity: 0.5 !important; }
-  .platform-card.checked { border-left: 3px solid var(--yellow); }
-
-  @keyframes cardReveal {
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .platform-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-
-  .platform-name {
-    font-family: 'Orbitron', monospace;
-    font-size: 0.75rem;
-    letter-spacing: 2px;
-    color: var(--text);
-  }
-
-  .platform-status {
-    font-size: 0.6rem;
-    letter-spacing: 2px;
-    padding: 3px 10px;
-    border: 1px solid currentColor;
-  }
-
-  .status-found { color: var(--green); }
-  .status-notfound { color: #444; }
-  .status-possible { color: var(--yellow); }
-
-  .platform-icon {
-    font-size: 1.4rem;
-    margin-right: 10px;
-  }
-
-  .platform-name-wrap {
-    display: flex;
-    align-items: center;
-  }
-
-  .platform-url {
-    font-size: 0.65rem;
-    color: var(--text-dim);
-    word-break: break-all;
-    line-height: 1.6;
-    margin-bottom: 8px;
-  }
-
-  .platform-url a {
-    color: var(--cyan);
-    text-decoration: none;
-  }
-
-  .platform-url a:hover { text-decoration: underline; }
-
-  .platform-detail {
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    line-height: 1.6;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 0.85rem;
-  }
-
-  /* Exposure bar */
-  .exposure-section {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    padding: 24px;
-    margin-bottom: 24px;
-  }
-
-  .exposure-title {
-    font-family: 'Orbitron', monospace;
-    font-size: 0.65rem;
-    letter-spacing: 4px;
-    color: var(--text-dim);
-    margin-bottom: 20px;
-  }
-
-  .exposure-bar-wrap {
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .exposure-label {
-    width: 100px;
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    letter-spacing: 1px;
-    flex-shrink: 0;
-  }
-
-  .exposure-bar {
-    flex: 1;
-    height: 6px;
-    background: var(--border);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .exposure-fill {
-    height: 100%;
-    background: var(--green);
-    width: 0%;
-    transition: width 1s ease;
-    box-shadow: 0 0 8px var(--green);
-  }
-
-  .exposure-fill.medium { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
-  .exposure-fill.high { background: var(--red); box-shadow: 0 0 8px var(--red); }
-
-  .exposure-pct {
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    width: 36px;
-    text-align: right;
-    flex-shrink: 0;
-  }
-
-  /* Error */
-  .error-panel {
-    display: none;
-    background: var(--panel);
-    border: 1px solid rgba(255,60,60,0.3);
-    border-left: 3px solid var(--red);
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    color: var(--red);
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-  }
-
-  .error-panel.active { display: block; }
-
-  /* Footer */
-  footer {
-    margin-top: 60px;
-    border-top: 1px solid var(--border);
-    padding-top: 20px;
-    font-size: 0.6rem;
-    color: var(--text-dim);
-    letter-spacing: 3px;
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  /* Typewriter */
-  .typewriter {
-    overflow: hidden;
-    border-right: 2px solid var(--green);
-    white-space: nowrap;
-    animation: typing 1s steps(20) forwards, blink 0.75s step-end infinite;
-  }
-
-  @keyframes typing {
-    from { width: 0; }
-    to { width: 100%; }
-  }
-
-  @keyframes blink {
-    50% { border-color: transparent; }
-  }
-
-  .corner-tl, .corner-tr, .corner-bl, .corner-br {
-    position: absolute;
-    width: 12px; height: 12px;
-  }
-  .corner-tl { top: 0; left: 0; border-top: 2px solid var(--green); border-left: 2px solid var(--green); }
-  .corner-tr { top: 0; right: 0; border-top: 2px solid var(--green); border-right: 2px solid var(--green); }
-  .corner-bl { bottom: 0; left: 0; border-bottom: 2px solid var(--green); border-left: 2px solid var(--green); }
-  .corner-br { bottom: 0; right: 0; border-bottom: 2px solid var(--green); border-right: 2px solid var(--green); }
-
-  .disclaimer {
-    background: rgba(255,214,0,0.04);
-    border: 1px solid rgba(255,214,0,0.2);
-    padding: 12px 18px;
-    font-size: 0.65rem;
-    color: rgba(255,214,0,0.5);
-    letter-spacing: 2px;
-    line-height: 1.8;
-    margin-bottom: 24px;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roblox Script Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f10;
+      --surface:  #141618;
+      --border:   #252729;
+      --border2:  #2e3133;
+      --muted:    #5a5f63;
+      --text:     #c9cdd1;
+      --bright:   #e8eaed;
+      --accent:   #f0c040;
+      --red:      #e05c5c;
+      --green:    #5cb85c;
+      --blue:     #5b9bd5;
+      --orange:   #d9834a;
+      --mono:     'IBM Plex Mono', monospace;
+      --sans:     'IBM Plex Sans', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ---- Layout ---- */
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 28px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+    header h1 {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--bright);
+      letter-spacing: .03em;
+    }
+    header span {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      min-height: 0;
+    }
+
+    /* ---- Left panel ---- */
+    .panel-left {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .drop-zone {
+      margin: 20px;
+      border: 1px dashed var(--border2);
+      border-radius: 3px;
+      padding: 24px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .drop-zone:hover, .drop-zone.dragging {
+      border-color: var(--accent);
+      background: rgba(240,192,64,.04);
+    }
+    .drop-zone p {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .drop-zone strong {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .file-input { display: none; }
+
+    textarea {
+      flex: 1;
+      margin: 0 20px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--bright);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.7;
+      padding: 14px;
+      resize: none;
+      outline: none;
+      tab-size: 4;
+      transition: border-color .15s;
+      min-height: 340px;
+    }
+    textarea:focus { border-color: var(--border2); }
+    textarea::placeholder { color: var(--muted); }
+
+    .actions {
+      padding: 0 20px 20px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+      padding: 9px 18px;
+      letter-spacing: .04em;
+      transition: opacity .1s, background .1s;
+    }
+    button:active { opacity: .8; }
+
+    .btn-scan {
+      background: var(--accent);
+      color: #0d0f10;
+    }
+    .btn-scan:hover { background: #f5cc55; }
+
+    .btn-clear {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border2);
+    }
+    .btn-clear:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ---- Right panel ---- */
+    .panel-right {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .results-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 0 20px;
+    }
+    .results-area::-webkit-scrollbar { width: 6px; }
+    .results-area::-webkit-scrollbar-track { background: transparent; }
+    .results-area::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+    /* ---- Summary bar ---- */
+    .summary {
+      display: none;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .summary.visible { display: flex; }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .stat-val {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+    }
+
+    /* ---- Category sections ---- */
+    .cat {
+      border-bottom: 1px solid var(--border);
+    }
+    .cat-head {
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: background .1s;
+    }
+    .cat-head:hover { background: rgba(255,255,255,.02); }
+
+    .cat-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 2px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .tag-remote  { background: rgba(91,155,213,.15); color: var(--blue); }
+    .tag-data    { background: rgba(92,184,92,.15);  color: var(--green); }
+    .tag-back    { background: rgba(224,92,92,.15);  color: var(--red); }
+    .tag-sus     { background: rgba(217,131,74,.15); color: var(--orange); }
+
+    .cat-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--bright);
+      flex: 1;
+    }
+    .cat-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .cat-arrow {
+      font-size: 10px;
+      color: var(--muted);
+      transition: transform .15s;
+    }
+    .cat.collapsed .cat-arrow { transform: rotate(-90deg); }
+    .cat.collapsed .cat-body  { display: none; }
+
+    .cat-body { padding: 0 20px 14px; }
+
+    .finding {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .finding-meta {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .line-num {
+      color: var(--muted);
+    }
+    .line-num strong {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .match-name {
+      color: var(--text);
+      flex: 1;
+    }
+    .sev {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 2px;
+      text-transform: uppercase;
+    }
+    .sev-high   { background: rgba(224,92,92,.2);  color: var(--red); }
+    .sev-medium { background: rgba(217,131,74,.2); color: var(--orange); }
+    .sev-low    { background: rgba(91,155,213,.2); color: var(--blue); }
+    .sev-info   { background: rgba(90,95,99,.2);   color: var(--muted); }
+
+    .finding-code {
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text);
+      line-height: 1.6;
+      white-space: pre;
+      overflow-x: auto;
+      tab-size: 4;
+    }
+    .finding-code::-webkit-scrollbar { height: 4px; }
+    .finding-code::-webkit-scrollbar-thumb { background: var(--border2); }
+
+    .hl { color: var(--accent); font-weight: 600; }
+    .hl-red { color: var(--red); font-weight: 600; }
+
+    .finding-desc {
+      padding: 6px 12px 10px;
+      font-size: 11.5px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+    }
+    .empty-state p {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .no-findings {
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 780px) {
+      main { grid-template-columns: 1fr; }
+      .panel-left { border-right: none; border-bottom: 1px solid var(--border); }
+      textarea { min-height: 220px; }
+    }
+  </style>
 </head>
 <body>
-<div class="noise"></div>
-<div class="container">
-
+<div class="shell">
   <header>
-    <div class="logo">
-      <div class="logo-title">TRACE</div>
-      <div class="logo-sub">Digital Footprint Analyzer // v2.7.1</div>
-    </div>
-    <div class="status-bar">
-      <div><span class="status-dot"></span>SYSTEM ONLINE</div>
-      <div id="clock">--:--:-- UTC</div>
-      <div>NODE: ALPHA-7 // ENCRYPTED</div>
-    </div>
+    <h1>rbx-scan</h1>
+    <span>Roblox Script Analysis Tool</span>
   </header>
 
-  <div class="disclaimer">
-    ⚠ ETHICAL USE ONLY — This tool analyzes publicly available information. Only search usernames you own or have permission to investigate. Results are AI-generated estimations, not real-time scraping.
-  </div>
+  <main>
+    <!-- LEFT: input -->
+    <div class="panel-left">
+      <div class="panel-header">
+        <span>Script Input</span>
+        <span id="char-count">0 chars</span>
+      </div>
 
-  <div class="input-section">
-    <div class="corner-tl"></div><div class="corner-tr"></div>
-    <div class="corner-bl"></div><div class="corner-br"></div>
-    <div class="input-grid">
-      <div class="field">
-        <label>Username / Handle</label>
-        <input type="text" id="username" placeholder="e.g. johndoe99" autocomplete="off" spellcheck="false">
+      <div class="drop-zone" id="drop-zone">
+        <p><strong>Drop a .lua / .txt file here</strong></p>
+        <p style="margin-top:5px">or paste your script below</p>
+        <input type="file" class="file-input" id="file-input" accept=".lua,.txt,.luau" />
       </div>
-      <div class="field">
-        <label>Email Address</label>
-        <input type="text" id="email" placeholder="e.g. john@email.com" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="field">
-        <label>Nickname / Alias</label>
-        <input type="text" id="nickname" placeholder="e.g. shadow_runner" autocomplete="off" spellcheck="false">
+
+      <textarea id="script-input" placeholder="-- Paste Roblox Lua script here...
+-- Supports: LocalScript, Script, ModuleScript"></textarea>
+
+      <div class="actions">
+        <button class="btn-scan" id="btn-scan">Scan Script</button>
+        <button class="btn-clear" id="btn-clear">Clear</button>
       </div>
     </div>
-    <button class="trace-btn" id="traceBtn" onclick="startTrace()">
-      ⬡ INITIATE TRACE SEQUENCE
-    </button>
-  </div>
 
-  <div class="error-panel" id="errorPanel">
-    <strong>TRACE ERROR:</strong> <span id="errorMsg"></span>
-  </div>
+    <!-- RIGHT: results -->
+    <div class="panel-right">
+      <div class="panel-header">
+        <span>Results</span>
+      </div>
 
-  <div class="scan-section" id="scanSection">
-    <div class="radar">
-      <div class="radar-sweep"></div>
-      <div class="radar-center"></div>
-    </div>
-    <div class="scan-log" id="scanLog"></div>
-  </div>
+      <div class="summary" id="summary">
+        <div class="stat">
+          <span class="stat-val" id="s-total" style="color:var(--bright)">0</span>
+          <span class="stat-label">Total Findings</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val" id="s-back" style="color:var(--red)">0</span>
+          <span class="stat-label">Backdoors</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val" id="s-sus" style="color:var(--orange)">0</span>
+          <span class="stat-label">Suspicious</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val" id="s-remote" style="color:var(--blue)">0</span>
+          <span class="stat-label">Remotes</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val" id="s-data" style="color:var(--green)">0</span>
+          <span class="stat-label">DataStore</span>
+        </div>
+      </div>
 
-  <div class="results-section" id="resultsSection">
-    <div class="results-header">
-      <div class="results-title">// TRACE COMPLETE — SUBJECT PROFILE</div>
-      <div class="threat-score">
-        <div>
-          <div class="threat-label">EXPOSURE INDEX</div>
-          <div class="threat-value" id="exposureIndex">--</div>
+      <div class="results-area" id="results-area">
+        <div class="empty-state" id="empty-state">
+          <p>No script scanned yet.</p>
+          <p style="margin-top:8px">Paste a script and hit Scan.</p>
         </div>
       </div>
     </div>
-
-    <div class="summary-panel" id="summaryPanel">
-      <h3>// ANALYST SUMMARY</h3>
-      <div id="summaryText"></div>
-    </div>
-
-    <div class="exposure-section" id="exposureSection">
-      <div class="exposure-title">// EXPOSURE BREAKDOWN BY CATEGORY</div>
-      <div id="exposureBars"></div>
-    </div>
-
-    <div class="platforms-grid" id="platformsGrid"></div>
-  </div>
-
-  <footer>
-    <span>TRACE // DIGITAL FOOTPRINT ANALYZER</span>
-    <span>POWERED BY CLAUDE AI // ANTHROPIC</span>
-    <span id="footerTime">SESSION: ACTIVE</span>
-  </footer>
+  </main>
 </div>
 
 <script>
-// Clock
-function updateClock() {
-  const now = new Date();
-  document.getElementById('clock').textContent =
-    now.toUTCString().split(' ')[4] + ' UTC';
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-const logMessages = [
-  "Initializing trace protocol...",
-  "Connecting to intelligence nodes...",
-  "Scanning social media platforms...",
-  "Probing developer ecosystems...",
-  "Checking gaming networks...",
-  "Analyzing forum presence...",
-  "Cross-referencing data breach databases...",
-  "Correlating identity markers...",
-  "Compiling threat assessment...",
-  "Generating subject profile..."
-];
-
-let logInterval;
-
-function showLog() {
-  const logEl = document.getElementById('scanLog');
-  logEl.innerHTML = '';
-  let i = 0;
-  logInterval = setInterval(() => {
-    if (i < logMessages.length) {
-      const line = document.createElement('div');
-      line.className = 'log-line';
-      line.style.animationDelay = '0s';
-      line.textContent = logMessages[i];
-      logEl.appendChild(line);
-      i++;
-    } else {
-      clearInterval(logInterval);
-    }
-  }, 600);
-}
-
-async function startTrace() {
-  const username = document.getElementById('username').value.trim();
-  const email = document.getElementById('email').value.trim();
-  const nickname = document.getElementById('nickname').value.trim();
-
-  if (!username && !email && !nickname) {
-    showError('At least one identifier required to initiate trace.');
-    return;
-  }
-
-  // Reset UI
-  document.getElementById('errorPanel').classList.remove('active');
-  document.getElementById('resultsSection').classList.remove('active');
-  document.getElementById('scanSection').classList.add('active');
-  document.getElementById('traceBtn').disabled = true;
-  showLog();
-
-  const prompt = buildPrompt(username, email, nickname);
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        system: `You are a digital OSINT analyst. When given a username, email, or nickname, you analyze the likely digital footprint of a person with that identity across the internet. You respond ONLY with valid JSON (no markdown, no backticks, no preamble).`,
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-
-    const data = await response.json();
-    const raw = data.content.map(b => b.text || '').join('');
-    const clean = raw.replace(/```json|```/g, '').trim();
-    const result = JSON.parse(clean);
-
-    clearInterval(logInterval);
-    setTimeout(() => renderResults(result), 800);
-  } catch (e) {
-    clearInterval(logInterval);
-    document.getElementById('scanSection').classList.remove('active');
-    document.getElementById('traceBtn').disabled = false;
-    showError('Trace failed: ' + (e.message || 'Unknown error. Check API key.'));
-  }
-}
-
-function buildPrompt(username, email, nickname) {
-  return `Analyze the digital footprint for this subject:
-Username: "${username || 'N/A'}"
-Email: "${email || 'N/A'}"
-Nickname: "${nickname || 'N/A'}"
-
-Based on typical patterns for this type of identifier, generate a realistic OSINT-style digital footprint analysis.
-
-Return ONLY this exact JSON structure:
-{
-  "exposureIndex": <number 0-100>,
-  "exposureLevel": "<LOW|MEDIUM|HIGH|CRITICAL>",
-  "summary": "<2-3 sentences analyst summary of the subject's likely digital presence and risk profile>",
-  "categories": [
-    { "name": "<category>", "score": <0-100>, "level": "<low|medium|high>" }
-  ],
-  "platforms": [
+// ============================================================
+//  Detection rules
+// ============================================================
+const RULES = {
+  backdoor: [
     {
-      "name": "<Platform Name>",
-      "icon": "<emoji>",
-      "status": "<FOUND|NOT FOUND|POSSIBLE>",
-      "url": "<likely profile URL or N/A>",
-      "detail": "<one sentence about what was found or likely exists here>"
-    }
+      id: 'loadstring',
+      pattern: /\bloadstring\s*\(/g,
+      name: 'loadstring()',
+      severity: 'high',
+      desc: 'Executes arbitrary Lua code from a string at runtime. Commonly used in backdoors to run downloaded or obfuscated payloads.'
+    },
+    {
+      id: 'http_require',
+      pattern: /require\s*\(\s*\d+\s*\)/g,
+      name: 'require() with asset ID',
+      severity: 'high',
+      desc: 'Requiring a numeric asset ID at runtime loads external code from Roblox asset library. A classic backdoor vector.'
+    },
+    {
+      id: 'getfenv',
+      pattern: /\bgetfenv\s*\(/g,
+      name: 'getfenv()',
+      severity: 'high',
+      desc: 'Accesses the function environment. Used by backdoors to steal or manipulate global state.'
+    },
+    {
+      id: 'setfenv',
+      pattern: /\bsetfenv\s*\(/g,
+      name: 'setfenv()',
+      severity: 'high',
+      desc: 'Replaces a function environment. Lets malicious code hijack the execution context of other functions.'
+    },
+    {
+      id: 'syn_request',
+      pattern: /\bsyn\.request\s*\(/g,
+      name: 'syn.request()',
+      severity: 'high',
+      desc: 'Executor-only HTTP function. Should never appear in legitimate game scripts.'
+    },
+    {
+      id: 'http_request',
+      pattern: /\bHttpService\s*:\s*RequestAsync\s*\(/g,
+      name: 'HttpService:RequestAsync()',
+      severity: 'medium',
+      desc: 'Makes an outbound HTTP request. Can be used to exfiltrate player data or receive remote commands.'
+    },
+    {
+      id: 'discord_webhook',
+      pattern: /discord\.com\/api\/webhooks/g,
+      name: 'Discord webhook URL',
+      severity: 'high',
+      desc: 'Hardcoded Discord webhook. Often used to exfiltrate player info, auth tokens, or game data.'
+    },
+    {
+      id: 'global_g',
+      pattern: /_G\s*\[/g,
+      name: '_G[] global table access',
+      severity: 'medium',
+      desc: 'Accessing the shared global table via string key. Used to hide functions or communicate between scripts stealthily.'
+    },
+    {
+      id: 'obfusc_hex',
+      pattern: /(?:\\x[0-9a-fA-F]{2}){6,}/g,
+      name: 'Hex-encoded string (6+ bytes)',
+      severity: 'high',
+      desc: 'Long hex escape sequence. Obfuscated strings are commonly used to hide malicious URLs, function names, or code.'
+    },
+    {
+      id: 'string_char',
+      pattern: /string\.char\s*\(\s*(?:\d+\s*,\s*){4,}\d+\s*\)/g,
+      name: 'string.char() with many args',
+      severity: 'high',
+      desc: 'Building strings byte-by-byte to evade plain-text scanning. A standard obfuscation technique.'
+    },
+  ],
+
+  suspicious: [
+    {
+      id: 'pcall_loadstring',
+      pattern: /pcall\s*\(\s*loadstring/g,
+      name: 'pcall(loadstring ...)',
+      severity: 'high',
+      desc: 'Silent execution of dynamic code. The pcall wrapper hides errors, making backdoor execution harder to detect.'
+    },
+    {
+      id: 'hookfunction',
+      pattern: /\bhookfunction\s*\(/g,
+      name: 'hookfunction()',
+      severity: 'high',
+      desc: 'Executor function that replaces another function at runtime. Not available in normal Roblox scripts.'
+    },
+    {
+      id: 'newcclosure',
+      pattern: /\bnewcclosure\s*\(/g,
+      name: 'newcclosure()',
+      severity: 'high',
+      desc: 'Executor-only function used to wrap Lua closures as C closures to evade detection.'
+    },
+    {
+      id: 'getgc',
+      pattern: /\bgetgc\s*\(/g,
+      name: 'getgc()',
+      severity: 'high',
+      desc: 'Returns all GC references. Used by exploits to find and hook internal functions.'
+    },
+    {
+      id: 'debug_getinfo',
+      pattern: /\bdebug\.getinfo\s*\(/g,
+      name: 'debug.getinfo()',
+      severity: 'medium',
+      desc: 'Inspects function metadata. Can be misused for anti-tamper or to fingerprint the execution environment.'
+    },
+    {
+      id: 'rawset',
+      pattern: /\brawset\s*\(/g,
+      name: 'rawset()',
+      severity: 'low',
+      desc: 'Bypasses __newindex metamethods. Suspicious when combined with other obfuscation patterns.'
+    },
+    {
+      id: 'rawget',
+      pattern: /\brawget\s*\(/g,
+      name: 'rawget()',
+      severity: 'low',
+      desc: 'Bypasses __index metamethods. Sometimes used to access sandbox-restricted globals.'
+    },
+    {
+      id: 'hidden_require',
+      pattern: /\brequire\s*\(\s*game\.(?:GetService|service)\s*/g,
+      name: 'require() via indirect service',
+      severity: 'medium',
+      desc: 'Loading modules through indirect service references. Can obscure the actual module being loaded.'
+    },
+    {
+      id: 'long_string',
+      pattern: /["'][^"'\n]{300,}["']/g,
+      name: 'Very long string literal (300+ chars)',
+      severity: 'medium',
+      desc: 'Unusually long string constant. May be base64-encoded or otherwise obfuscated payload data.'
+    },
+    {
+      id: 'b64_pattern',
+      pattern: /[A-Za-z0-9+\/]{40,}={0,2}/g,
+      name: 'Possible base64 string',
+      severity: 'medium',
+      desc: 'Looks like a base64-encoded blob. Often used to hide URLs, scripts, or data from plain-text inspection.'
+    },
+  ],
+
+  remote: [
+    {
+      id: 'fire_server',
+      pattern: /\bFireServer\s*\(/g,
+      name: 'FireServer()',
+      severity: 'info',
+      desc: 'Client firing a RemoteEvent to the server. Normal in LocalScripts; verify the handler validates input.'
+    },
+    {
+      id: 'fire_client',
+      pattern: /\bFireClient\s*\(/g,
+      name: 'FireClient()',
+      severity: 'info',
+      desc: 'Server firing a RemoteEvent to a specific client.'
+    },
+    {
+      id: 'fire_all_clients',
+      pattern: /\bFireAllClients\s*\(/g,
+      name: 'FireAllClients()',
+      severity: 'info',
+      desc: 'Server broadcasting to all clients. Make sure sensitive data is not leaked to untrusted clients.'
+    },
+    {
+      id: 'invoke_server',
+      pattern: /\bInvokeServer\s*\(/g,
+      name: 'InvokeServer()',
+      severity: 'info',
+      desc: 'Client invoking a RemoteFunction on the server. Ensure the server-side callback validates all arguments.'
+    },
+    {
+      id: 'invoke_client',
+      pattern: /\bInvokeClient\s*\(/g,
+      name: 'InvokeClient()',
+      severity: 'medium',
+      desc: 'Server invoking a RemoteFunction on a client. This can hang the server thread if the client never responds. Avoid when possible.'
+    },
+    {
+      id: 'on_server_event',
+      pattern: /\bOnServerEvent\s*:/g,
+      name: 'OnServerEvent listener',
+      severity: 'info',
+      desc: 'Server-side RemoteEvent handler. Ensure client-supplied arguments are sanitized.'
+    },
+    {
+      id: 'on_client_event',
+      pattern: /\bOnClientEvent\s*:/g,
+      name: 'OnClientEvent listener',
+      severity: 'info',
+      desc: 'Client-side RemoteEvent handler.'
+    },
+    {
+      id: 'remote_event_new',
+      pattern: /Instance\.new\s*\(\s*["']RemoteEvent["']/g,
+      name: 'new RemoteEvent instance',
+      severity: 'info',
+      desc: 'Creating a RemoteEvent at runtime.'
+    },
+    {
+      id: 'remote_func_new',
+      pattern: /Instance\.new\s*\(\s*["']RemoteFunction["']/g,
+      name: 'new RemoteFunction instance',
+      severity: 'info',
+      desc: 'Creating a RemoteFunction at runtime.'
+    },
+    {
+      id: 'bindable_event',
+      pattern: /Instance\.new\s*\(\s*["']BindableEvent["']/g,
+      name: 'new BindableEvent instance',
+      severity: 'info',
+      desc: 'Server-to-server or client-to-client event. Less of a security concern than RemoteEvent.'
+    },
+  ],
+
+  datastore: [
+    {
+      id: 'get_datastore',
+      pattern: /\bGetDataStore\s*\(/g,
+      name: 'GetDataStore()',
+      severity: 'info',
+      desc: 'Accessing a named DataStore. Check that keys are scoped per-player and not overly broad.'
+    },
+    {
+      id: 'get_global_ds',
+      pattern: /\bGetGlobalDataStore\s*\(/g,
+      name: 'GetGlobalDataStore()',
+      severity: 'low',
+      desc: 'Accessing the global DataStore. Prefer named stores for better organization and isolation.'
+    },
+    {
+      id: 'set_async',
+      pattern: /\bSetAsync\s*\(/g,
+      name: 'SetAsync()',
+      severity: 'info',
+      desc: 'Writing to a DataStore key. Avoid calling without pcall; a failure here can corrupt player data.'
+    },
+    {
+      id: 'get_async',
+      pattern: /\bGetAsync\s*\(/g,
+      name: 'GetAsync()',
+      severity: 'info',
+      desc: 'Reading from a DataStore key.'
+    },
+    {
+      id: 'update_async',
+      pattern: /\bUpdateAsync\s*\(/g,
+      name: 'UpdateAsync()',
+      severity: 'info',
+      desc: 'Atomic DataStore update. Preferred over SetAsync for safe concurrent writes.'
+    },
+    {
+      id: 'remove_async',
+      pattern: /\bRemoveAsync\s*\(/g,
+      name: 'RemoveAsync()',
+      severity: 'low',
+      desc: 'Deleting a DataStore key. Verify this is intentional; permanent data loss can occur.'
+    },
+    {
+      id: 'increment_async',
+      pattern: /\bIncrementAsync\s*\(/g,
+      name: 'IncrementAsync()',
+      severity: 'info',
+      desc: 'Atomic integer increment in DataStore.'
+    },
+    {
+      id: 'ordered_ds',
+      pattern: /\bGetOrderedDataStore\s*\(/g,
+      name: 'GetOrderedDataStore()',
+      severity: 'info',
+      desc: 'Accessing an OrderedDataStore, usually for leaderboards.'
+    },
+    {
+      id: 'ds_service',
+      pattern: /\bDataStoreService\b/g,
+      name: 'DataStoreService reference',
+      severity: 'info',
+      desc: 'Script accesses DataStoreService. Make sure this is server-side only.'
+    },
   ]
+};
+
+// ============================================================
+//  Scanner
+// ============================================================
+function scan(code) {
+  const lines = code.split('\n');
+  const results = { backdoor: [], suspicious: [], remote: [], datastore: [] };
+
+  for (const [cat, rules] of Object.entries(RULES)) {
+    for (const rule of rules) {
+      rule.pattern.lastIndex = 0;
+      let match;
+      const seen = new Set();
+      while ((match = rule.pattern.exec(code)) !== null) {
+        const pos = match.index;
+        // find line number
+        const linesBefore = code.slice(0, pos).split('\n');
+        const lineNum = linesBefore.length;
+        const key = `${rule.id}:${lineNum}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const lineContent = lines[lineNum - 1] || '';
+        results[cat].push({
+          rule,
+          lineNum,
+          lineContent: lineContent.trimStart(),
+          matchText: match[0]
+        });
+      }
+      rule.pattern.lastIndex = 0;
+    }
+  }
+  return results;
 }
 
-Categories must include: Social Media, Developer Tools, Gaming, Forums & Communities, Professional Networks, Data Brokers.
-Platforms must include at least 12 platforms like: Twitter/X, GitHub, Reddit, LinkedIn, Instagram, TikTok, Facebook, YouTube, Steam, Discord (servers), HackerNews, Stack Overflow, Twitch, Spotify, Pinterest, Medium, Keybase, Gravatar, Have I Been Pwned (data breaches).
-Be realistic and thoughtful. If username looks technical (has numbers, underscores), it's more likely on GitHub/HackerNews. Common names more likely on social. Email domains give clues. Make the analysis feel genuine and investigative.`;
+// ============================================================
+//  Render
+// ============================================================
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function renderResults(data) {
-  document.getElementById('scanSection').classList.remove('active');
-  document.getElementById('resultsSection').classList.add('active');
-  document.getElementById('traceBtn').disabled = false;
+function highlightMatch(lineContent, matchText) {
+  const escaped = escHtml(lineContent);
+  const escapedMatch = escHtml(matchText);
+  return escaped.replace(escapedMatch, `<span class="hl">${escapedMatch}</span>`);
+}
 
-  // Exposure index
-  const lvlColors = { LOW: '#00ff9d', MEDIUM: '#ffd600', HIGH: '#ff8c00', CRITICAL: '#ff3c3c' };
-  const idxEl = document.getElementById('exposureIndex');
-  idxEl.textContent = data.exposureIndex + ' / ' + data.exposureLevel;
-  idxEl.style.color = lvlColors[data.exposureLevel] || '#ffd600';
+function sevClass(s) {
+  return { high: 'sev-high', medium: 'sev-medium', low: 'sev-low', info: 'sev-info' }[s] || 'sev-info';
+}
 
-  // Summary
-  document.getElementById('summaryText').textContent = data.summary;
+const CAT_META = {
+  backdoor:   { label: 'Backdoor',   tag: 'tag-back',   title: 'Possible Backdoors' },
+  suspicious: { label: 'Suspicious', tag: 'tag-sus',    title: 'Suspicious Patterns' },
+  remote:     { label: 'Remote',     tag: 'tag-remote', title: 'Remote Events / Functions' },
+  datastore:  { label: 'DataStore',  tag: 'tag-data',   title: 'DataStore Usage' },
+};
 
-  // Exposure bars
-  const barsEl = document.getElementById('exposureBars');
-  barsEl.innerHTML = '';
-  (data.categories || []).forEach((cat, i) => {
-    const levelClass = cat.score > 70 ? 'high' : cat.score > 40 ? 'medium' : '';
-    barsEl.innerHTML += `
-      <div class="exposure-bar-wrap">
-        <div class="exposure-label">${cat.name}</div>
-        <div class="exposure-bar">
-          <div class="exposure-fill ${levelClass}" id="bar-${i}" data-target="${cat.score}"></div>
-        </div>
-        <div class="exposure-pct">${cat.score}%</div>
-      </div>`;
-  });
+function renderResults(results) {
+  const area = document.getElementById('results-area');
+  const summary = document.getElementById('summary');
+  document.getElementById('empty-state')?.remove();
 
-  setTimeout(() => {
-    (data.categories || []).forEach((cat, i) => {
-      const bar = document.getElementById('bar-' + i);
-      if (bar) bar.style.width = cat.score + '%';
-    });
-  }, 100);
+  const total = Object.values(results).reduce((a, b) => a + b.length, 0);
+  document.getElementById('s-total').textContent  = total;
+  document.getElementById('s-back').textContent   = results.backdoor.length;
+  document.getElementById('s-sus').textContent    = results.suspicious.length;
+  document.getElementById('s-remote').textContent = results.remote.length;
+  document.getElementById('s-data').textContent   = results.datastore.length;
+  summary.classList.add('visible');
 
-  // Platform cards
-  const grid = document.getElementById('platformsGrid');
-  grid.innerHTML = '';
-  const statusClass = { 'FOUND': 'found', 'NOT FOUND': 'not-found', 'POSSIBLE': 'checked' };
-  const statusLabel = { 'FOUND': 'status-found', 'NOT FOUND': 'status-notfound', 'POSSIBLE': 'status-possible' };
+  area.innerHTML = '';
 
-  (data.platforms || []).forEach((p, i) => {
-    const cardClass = statusClass[p.status] || 'checked';
-    const labelClass = statusLabel[p.status] || 'status-possible';
-    const url = p.url && p.url !== 'N/A'
-      ? `<a href="${p.url}" target="_blank" rel="noopener">${p.url}</a>`
-      : `<span style="color:#333">N/A</span>`;
+  const order = ['backdoor', 'suspicious', 'remote', 'datastore'];
+  for (const cat of order) {
+    const items = results[cat];
+    const meta  = CAT_META[cat];
 
-    const card = document.createElement('div');
-    card.className = `platform-card ${cardClass}`;
-    card.style.animationDelay = (i * 0.06) + 's';
-    card.innerHTML = `
-      <div class="platform-header">
-        <div class="platform-name-wrap">
-          <span class="platform-icon">${p.icon || '🌐'}</span>
-          <span class="platform-name">${p.name}</span>
-        </div>
-        <span class="platform-status ${labelClass}">${p.status}</span>
+    const section = document.createElement('div');
+    section.className = 'cat';
+    if (items.length === 0) section.classList.add('collapsed');
+
+    let bodyHtml = '';
+    if (items.length === 0) {
+      bodyHtml = `<div class="no-findings">No findings in this category.</div>`;
+    } else {
+      for (const item of items) {
+        bodyHtml += `
+          <div class="finding">
+            <div class="finding-meta">
+              <span class="line-num">line <strong>${item.lineNum}</strong></span>
+              <span class="match-name">${escHtml(item.rule.name)}</span>
+              <span class="sev ${sevClass(item.rule.severity)}">${item.rule.severity}</span>
+            </div>
+            <div class="finding-code">${highlightMatch(item.lineContent, item.matchText)}</div>
+            <div class="finding-desc">${escHtml(item.rule.desc)}</div>
+          </div>`;
+      }
+    }
+
+    section.innerHTML = `
+      <div class="cat-head">
+        <span class="cat-tag ${meta.tag}">${meta.label}</span>
+        <span class="cat-title">${meta.title}</span>
+        <span class="cat-count">${items.length} finding${items.length !== 1 ? 's' : ''}</span>
+        <span class="cat-arrow">&#9660;</span>
       </div>
-      <div class="platform-url">${url}</div>
-      <div class="platform-detail">${p.detail}</div>`;
-    grid.appendChild(card);
-  });
+      <div class="cat-body">${bodyHtml}</div>`;
+
+    section.querySelector('.cat-head').addEventListener('click', () => {
+      section.classList.toggle('collapsed');
+    });
+
+    area.appendChild(section);
+  }
 }
 
-function showError(msg) {
-  document.getElementById('errorMsg').textContent = msg;
-  document.getElementById('errorPanel').classList.add('active');
+// ============================================================
+//  UI wiring
+// ============================================================
+const textarea   = document.getElementById('script-input');
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const charCount  = document.getElementById('char-count');
+
+textarea.addEventListener('input', () => {
+  charCount.textContent = textarea.value.length.toLocaleString() + ' chars';
+});
+
+document.getElementById('btn-scan').addEventListener('click', () => {
+  const code = textarea.value.trim();
+  if (!code) return;
+  const results = scan(code);
+  renderResults(results);
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  textarea.value = '';
+  charCount.textContent = '0 chars';
+  document.getElementById('results-area').innerHTML =
+    '<div class="empty-state" id="empty-state"><p>No script scanned yet.</p><p style="margin-top:8px">Paste a script and hit Scan.</p></div>';
+  document.getElementById('summary').classList.remove('visible');
+});
+
+// Drop zone
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('dragging');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragging');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) loadFile(fileInput.files[0]);
+});
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    textarea.value = e.target.result;
+    charCount.textContent = textarea.value.length.toLocaleString() + ' chars';
+  };
+  reader.readAsText(file);
 }
 
-// Allow Enter key
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') startTrace();
+// Keyboard shortcut: Ctrl+Enter to scan
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    document.getElementById('btn-scan').click();
+  }
 });
 </script>
 </body>
